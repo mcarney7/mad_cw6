@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+enum TaskPriority { High, Medium, Low }
+
 class TaskListScreen extends StatefulWidget {
   @override
   _TaskListScreenState createState() => _TaskListScreenState();
@@ -9,28 +11,50 @@ class TaskListScreen extends StatefulWidget {
 
 class _TaskListScreenState extends State<TaskListScreen> {
   final TextEditingController _taskController = TextEditingController();
-  final FirebaseFirestore _firebase = FirebaseFirestore.instance;
-  final User? _user = FirebaseAuth.instance.currentUser;
+  final User? user = FirebaseAuth.instance.currentUser;
+  String _sortOrder = 'priority';
+  bool _showCompletedTasks = true;
 
-  // Method to add a task to Firebase Firestore
-  Future<void> _addTask(String taskName) async {
-    await _firebase.collection('tasks').add({
-      'name': taskName,
-      'isCompleted': false,
-      'userId': _user?.uid,
+  void _addTask() {
+    if (_taskController.text.isNotEmpty && user != null) {
+      FirebaseFirestore.instance.collection('tasks').add({
+        'name': _taskController.text,
+        'completed': false,
+        'priority': TaskPriority.Medium.toString(),
+        'userId': user!.uid,
+        'createdAt': Timestamp.now(),
+      });
+      _taskController.clear();
+    }
+  }
+
+  void _deleteTask(String id) {
+    FirebaseFirestore.instance.collection('tasks').doc(id).delete();
+  }
+
+  void _toggleComplete(DocumentSnapshot task) {
+    FirebaseFirestore.instance.collection('tasks').doc(task.id).update({
+      'completed': !task['completed'],
     });
   }
 
-  // Method to toggle task completion in Firebase
-  Future<void> _toggleTaskCompletion(String taskId, bool isCompleted) async {
-    await _firebase.collection('tasks').doc(taskId).update({
-      'isCompleted': !isCompleted,
+  void _setPriority(DocumentSnapshot task, String priority) {
+    FirebaseFirestore.instance.collection('tasks').doc(task.id).update({
+      'priority': priority,
     });
   }
 
-  // Method to delete a task from Firebase
-  Future<void> _deleteTask(String taskId) async {
-    await _firebase.collection('tasks').doc(taskId).delete();
+  Color _getPriorityColor(String priority) {
+    switch (priority) {
+      case 'TaskPriority.High':
+        return Colors.red;
+      case 'TaskPriority.Medium':
+        return Colors.yellow;
+      case 'TaskPriority.Low':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
   }
 
   @override
@@ -38,13 +62,31 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Task List'),
+        backgroundColor: Colors.teal,
         actions: [
-          IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              Navigator.of(context).pushReplacementNamed('/login');
+          DropdownButton<String>(
+            value: _sortOrder,
+            items: <String>['priority', 'createdAt', 'completed']
+                .map((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value.replaceAll('_', ' ').toUpperCase()),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _sortOrder = newValue!;
+              });
             },
+          ),
+          Switch(
+            value: _showCompletedTasks,
+            onChanged: (value) {
+              setState(() {
+                _showCompletedTasks = value;
+              });
+            },
+            activeColor: Colors.teal,
           ),
         ],
       ),
@@ -52,53 +94,73 @@ class _TaskListScreenState extends State<TaskListScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _taskController,
-              decoration: InputDecoration(
-                labelText: 'Enter task',
-                suffixIcon: IconButton(
-                  icon: Icon(Icons.add),
-                  onPressed: () {
-                    if (_taskController.text.isNotEmpty) {
-                      _addTask(_taskController.text);
-                      _taskController.clear();
-                    }
-                  },
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _taskController,
+                    decoration: InputDecoration(labelText: 'New Task'),
+                  ),
                 ),
-              ),
+                IconButton(
+                  icon: Icon(Icons.add, color: Colors.teal),
+                  onPressed: _addTask,
+                ),
+              ],
             ),
           ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _firebase
+            child: StreamBuilder(
+              stream: FirebaseFirestore.instance
                   .collection('tasks')
-                  .where('userId', isEqualTo: _user?.uid)
+                  .where('userId', isEqualTo: user?.uid)
+                  .orderBy(_sortOrder)
                   .snapshots(),
               builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-                if (!snapshot.hasData) {
-                  return Center(child: CircularProgressIndicator());
-                }
+                if (!snapshot.hasData) return CircularProgressIndicator();
+                var tasks = snapshot.data!.docs.where((task) {
+                  if (!_showCompletedTasks && task['completed']) return false;
+                  return true;
+                }).toList();
 
-                var tasks = snapshot.data!.docs;
-
-                return ListView.builder(
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    var task = tasks[index];
+                return ListView(
+                  children: tasks.map((task) {
                     return ListTile(
-                      title: Text(task['name']),
-                      leading: Checkbox(
-                        value: task['isCompleted'],
-                        onChanged: (value) {
-                          _toggleTaskCompletion(task.id, task['isCompleted']);
-                        },
+                      title: Text(
+                        task['name'],
+                        style: TextStyle(
+                          color: _getPriorityColor(task['priority']),
+                          decoration: task['completed']
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                        ),
                       ),
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete),
-                        onPressed: () => _deleteTask(task.id),
+                      leading: Checkbox(
+                        value: task['completed'],
+                        onChanged: (_) => _toggleComplete(task),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          DropdownButton<String>(
+                            value: task['priority'],
+                            items: TaskPriority.values.map((priority) {
+                              return DropdownMenuItem<String>(
+                                value: priority.toString(),
+                                child: Text(priority.toString().split('.').last),
+                              );
+                            }).toList(),
+                            onChanged: (String? value) =>
+                                _setPriority(task, value!),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteTask(task.id),
+                          ),
+                        ],
                       ),
                     );
-                  },
+                  }).toList(),
                 );
               },
             ),

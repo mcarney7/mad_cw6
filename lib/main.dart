@@ -1,26 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'login_screen.dart';
+import 'auth_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
-  );  // Initializes Firebase
+  );
   runApp(MyApp());
 }
 
-// Main Application widget
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Task Manager',
+      title: 'Firebase Auth Demo',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primaryColor: Colors.teal,
+        colorScheme: ColorScheme.fromSwatch().copyWith(
+          primary: Colors.teal,
+          secondary: Colors.tealAccent,
+        ),
+        buttonTheme: ButtonThemeData(buttonColor: Colors.teal),
       ),
-      home: LoginScreen(),  // Directs to the login screen
+      home: AuthScreen(),
     );
   }
 }
