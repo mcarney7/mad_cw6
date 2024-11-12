@@ -83,4 +83,5 @@ class DefaultFirebaseOptions {
     authDomain: 'mad-cw06.firebaseapp.com',
     storageBucket: 'mad-cw06.firebasestorage.app',
   );
+
 }
