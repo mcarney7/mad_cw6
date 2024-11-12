@@ -69,7 +69,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ),
           ),
           Expanded(
-            child: StreamBuilder(
+            child: StreamBuilder<QuerySnapshot>(
               stream: _firebase
                   .collection('tasks')
                   .where('userId', isEqualTo: _user?.uid)

@@ -1,34 +1,25 @@
 name: mad_cw6
 description: "A new Flutter project."
 
-publish_to: 'none'
+publish_to: 'none' # Prevents this package from being published
 
 version: 1.0.0+1
 
 environment:
-  sdk: ">=2.17.0 <3.0.0"
+  sdk: ">=2.19.0 <3.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-
-  # Firebase dependencies with specific versions
-  firebase_core: ^1.24.0         # Firebase Core SDK for Flutter
-  firebase_auth: ^3.3.16         # Firebase Authentication
-  cloud_firestore: ^3.1.18       # Firestore database
-
-dependency_overrides:
-  firebase_core_platform_interface: ^4.0.0
-  firebase_auth_platform_interface: ^6.0.0
-  firebase_auth_web: ^4.0.1
-  cloud_firestore_platform_interface: ^5.0.0
-  cloud_firestore_web: ^2.5.0
+  firebase_core: ^2.11.0
+  firebase_auth: ^4.20.0
+  cloud_firestore: ^4.7.0  # Add cloud_firestore dependency
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^2.0.1
 
 flutter:
   uses-material-design: true
