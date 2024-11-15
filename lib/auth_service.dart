@@ -12,25 +12,19 @@ class AuthService {
       );
       return result.user;
     } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'email-already-in-use':
-          print('Registration error: The email address is already in use.');
-          break;
-        case 'invalid-email':
-          print('Registration error: The email address is not valid.');
-          break;
-        case 'operation-not-allowed':
-          print('Registration error: Email/password accounts are not enabled.');
-          break;
-        case 'weak-password':
-          print('Registration error: The password is too weak.');
-          break;
-        default:
-          print('Registration error: ${e.message}');
+      if (e.code == 'email-already-in-use') {
+        print('The email address is already in use by another account.');
+      } else if (e.code == 'invalid-email') {
+        print('The email address is not valid.');
+      } else if (e.code == 'operation-not-allowed') {
+        print('Email/password accounts are not enabled.');
+      } else if (e.code == 'weak-password') {
+        print('The password is too weak.');
       }
+      print('Registration error: ${e.message}');
       return null;
     } catch (e) {
-      print('Registration error: An unexpected error occurred. ${e.toString()}');
+      print('Unexpected error: $e');
       return null;
     }
   }
@@ -43,24 +37,19 @@ class AuthService {
         password: password,
       );
       return result.user;
-    } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'user-not-found':
-          print('Sign-in error: No user found for that email.');
-          break;
-        case 'wrong-password':
-          print('Sign-in error: Wrong password provided.');
-          break;
-        case 'invalid-email':
-          print('Sign-in error: The email address is not valid.');
-          break;
-        default:
-          print('Sign-in error: ${e.message}');
-      }
-      return null;
     } catch (e) {
-      print('Sign-in error: An unexpected error occurred. ${e.toString()}');
+      print('Sign-in error: $e');
       return null;
+    }
+  }
+
+  // Change user password
+  Future<void> changePassword(String newPassword) async {
+    try {
+      await _auth.currentUser?.updatePassword(newPassword);
+      print('Password changed successfully');
+    } catch (e) {
+      print('Error changing password: $e');
     }
   }
 

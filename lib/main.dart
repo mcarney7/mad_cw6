@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'auth_screen.dart';
+import 'profile_screen.dart';
+import 'task_list_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -15,16 +17,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Firebase Auth Demo',
-      theme: ThemeData(
-        primaryColor: Colors.teal,
-        colorScheme: ColorScheme.fromSwatch().copyWith(
-          primary: Colors.teal,
-          secondary: Colors.tealAccent,
-        ),
-        buttonTheme: ButtonThemeData(buttonColor: Colors.teal),
-      ),
-      home: AuthScreen(),
+      title: 'Task Manager',
+      theme: ThemeData(primarySwatch: Colors.teal),
+      initialRoute: '/auth',
+      routes: {
+        '/auth': (context) => AuthScreen(),
+        '/profile': (context) => ProfileScreen(),
+        '/tasks': (context) => TaskListScreen(),
+      },
     );
   }
 }

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
-enum TaskPriority { High, Medium, Low }
+import 'task_model.dart';
 
 class TaskListScreen extends StatefulWidget {
   @override
@@ -11,49 +9,30 @@ class TaskListScreen extends StatefulWidget {
 
 class _TaskListScreenState extends State<TaskListScreen> {
   final TextEditingController _taskController = TextEditingController();
-  final User? user = FirebaseAuth.instance.currentUser;
-  String _sortOrder = 'priority';
-  bool _showCompletedTasks = true;
+  final TextEditingController _dayController = TextEditingController();
+  final TextEditingController _timeSlotController = TextEditingController();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  void _addTask() {
-    if (_taskController.text.isNotEmpty && user != null) {
-      FirebaseFirestore.instance.collection('tasks').add({
-        'name': _taskController.text,
-        'completed': false,
-        'priority': TaskPriority.Medium.toString(),
-        'userId': user!.uid,
-        'createdAt': Timestamp.now(),
-      });
+  String _selectedPriority = 'Medium';
+  String _filter = 'All';
+  String _sortOrder = 'Priority';
+
+  void _addTask(String taskName, String day, String timeSlot, String priority) {
+    if (taskName.isNotEmpty && day.isNotEmpty && timeSlot.isNotEmpty) {
+      final task = TaskModel(
+        id: '',
+        name: taskName,
+        priority: priority,
+        completed: false,
+        user: 'currentUserId', // Replace with authenticated user's ID
+        day: day,
+        timeSlot: timeSlot,
+        dueDate: DateTime.now().add(Duration(days: 1)), // Default due date
+      );
+      _firestore.collection('tasks').add(task.toMap());
       _taskController.clear();
-    }
-  }
-
-  void _deleteTask(String id) {
-    FirebaseFirestore.instance.collection('tasks').doc(id).delete();
-  }
-
-  void _toggleComplete(DocumentSnapshot task) {
-    FirebaseFirestore.instance.collection('tasks').doc(task.id).update({
-      'completed': !task['completed'],
-    });
-  }
-
-  void _setPriority(DocumentSnapshot task, String priority) {
-    FirebaseFirestore.instance.collection('tasks').doc(task.id).update({
-      'priority': priority,
-    });
-  }
-
-  Color _getPriorityColor(String priority) {
-    switch (priority) {
-      case 'TaskPriority.High':
-        return Colors.red;
-      case 'TaskPriority.Medium':
-        return Colors.yellow;
-      case 'TaskPriority.Low':
-        return Colors.green;
-      default:
-        return Colors.grey;
+      _dayController.clear();
+      _timeSlotController.clear();
     }
   }
 
@@ -62,103 +41,137 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Task List'),
-        backgroundColor: Colors.teal,
         actions: [
           DropdownButton<String>(
             value: _sortOrder,
-            items: <String>['priority', 'createdAt', 'completed']
-                .map((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value.replaceAll('_', ' ').toUpperCase()),
-              );
-            }).toList(),
-            onChanged: (String? newValue) {
-              setState(() {
-                _sortOrder = newValue!;
-              });
+            items: ['Priority', 'Due Date', 'Completion']
+                .map((sort) => DropdownMenuItem(value: sort, child: Text(sort)))
+                .toList(),
+            onChanged: (value) {
+              setState(() => _sortOrder = value ?? 'Priority');
             },
           ),
-          Switch(
-            value: _showCompletedTasks,
+          DropdownButton<String>(
+            value: _filter,
+            items: ['All', 'Completed', 'Incomplete']
+                .map((filter) => DropdownMenuItem(value: filter, child: Text(filter)))
+                .toList(),
             onChanged: (value) {
-              setState(() {
-                _showCompletedTasks = value;
-              });
+              setState(() => _filter = value ?? 'All');
             },
-            activeColor: Colors.teal,
           ),
         ],
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _taskController,
-                    decoration: InputDecoration(labelText: 'New Task'),
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _taskController,
+                  decoration: InputDecoration(labelText: 'Task Name'),
                 ),
-                IconButton(
-                  icon: Icon(Icons.add, color: Colors.teal),
-                  onPressed: _addTask,
+              ),
+              DropdownButton<String>(
+                value: _selectedPriority,
+                items: ['High', 'Medium', 'Low']
+                    .map((priority) => DropdownMenuItem(
+                          value: priority,
+                          child: Text(priority),
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => _selectedPriority = value ?? 'Medium');
+                },
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _dayController,
+                  decoration: InputDecoration(labelText: 'Day (e.g., Monday)'),
                 ),
-              ],
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _timeSlotController,
+                  decoration: InputDecoration(labelText: 'Time Slot (e.g., 9 am - 10 am)'),
+                ),
+              ),
+            ],
+          ),
+          ElevatedButton(
+            onPressed: () => _addTask(
+              _taskController.text,
+              _dayController.text,
+              _timeSlotController.text,
+              _selectedPriority,
             ),
+            child: Text('Add Task'),
           ),
           Expanded(
-            child: StreamBuilder(
-              stream: FirebaseFirestore.instance
-                  .collection('tasks')
-                  .where('userId', isEqualTo: user?.uid)
-                  .orderBy(_sortOrder)
-                  .snapshots(),
-              builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _firestore.collection('tasks').orderBy('dueDate').snapshots(),
+              builder: (context, snapshot) {
                 if (!snapshot.hasData) return CircularProgressIndicator();
-                var tasks = snapshot.data!.docs.where((task) {
-                  if (!_showCompletedTasks && task['completed']) return false;
-                  return true;
+
+                List<TaskModel> tasks = snapshot.data!.docs.map((doc) {
+                  return TaskModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
                 }).toList();
 
+                // Apply filtering
+                if (_filter != 'All') {
+                  tasks = tasks.where((task) {
+                    if (_filter == 'Completed') return task.completed;
+                    return !task.completed;
+                  }).toList();
+                }
+
+                // Apply sorting
+                if (_sortOrder == 'Priority') {
+                  tasks.sort((a, b) => a.priority.compareTo(b.priority));
+                }
+
+                // Group tasks by day and time slot
+                Map<String, List<TaskModel>> groupedTasks = {};
+                for (var task in tasks) {
+                  final key = '${task.day}-${task.timeSlot}';
+                  groupedTasks.putIfAbsent(key, () => []).add(task);
+                }
+
                 return ListView(
-                  children: tasks.map((task) {
-                    return ListTile(
-                      title: Text(
-                        task['name'],
-                        style: TextStyle(
-                          color: _getPriorityColor(task['priority']),
-                          decoration: task['completed']
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                        ),
-                      ),
-                      leading: Checkbox(
-                        value: task['completed'],
-                        onChanged: (_) => _toggleComplete(task),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          DropdownButton<String>(
-                            value: task['priority'],
-                            items: TaskPriority.values.map((priority) {
-                              return DropdownMenuItem<String>(
-                                value: priority.toString(),
-                                child: Text(priority.toString().split('.').last),
-                              );
-                            }).toList(),
-                            onChanged: (String? value) =>
-                                _setPriority(task, value!),
+                  children: groupedTasks.entries.map((entry) {
+                    return ExpansionTile(
+                      title: Text(entry.key),
+                      children: entry.value.map((task) {
+                        return ListTile(
+                          leading: Checkbox(
+                            value: task.completed,
+                            onChanged: (value) {
+                              _firestore.collection('tasks').doc(task.id).update({'completed': value});
+                            },
                           ),
-                          IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteTask(task.id),
+                          title: Text(task.name),
+                          subtitle: Text(
+                            'Priority: ${task.priority}',
+                            style: TextStyle(
+                              color: task.priority == 'High'
+                                  ? Colors.red
+                                  : task.priority == 'Medium'
+                                      ? Colors.orange
+                                      : Colors.green,
+                            ),
                           ),
-                        ],
-                      ),
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete),
+                            onPressed: () {
+                              _firestore.collection('tasks').doc(task.id).delete();
+                            },
+                          ),
+                        );
+                      }).toList(),
                     );
                   }).toList(),
                 );
